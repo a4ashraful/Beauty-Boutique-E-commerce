@@ -3,15 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "seed": "tsx scripts/seed.ts",
-    "set-admin": "tsx scripts/set-admin.ts",
-    "preview": "opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion && opennextjs-cloudflare preview",
-    "deploy": "opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion && opennextjs-cloudflare deploy"
-  },
+  "dev": "next dev",
+  "build": "next build",
+  "start": "next start",
+  "lint": "next lint",
+  "seed": "tsx scripts/seed.ts",
+  "set-admin": "tsx scripts/set-admin.ts"
+},
   "dependencies": {
     "next": "14.2.35",
     "react": "18.3.1",
