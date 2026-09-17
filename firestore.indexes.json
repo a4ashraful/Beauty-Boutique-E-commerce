@@ -1,0 +1,33 @@
+{
+  "indexes": [
+    { "collectionGroup": "products", "fields": [
+      { "fieldPath": "isActive", "order": "ASCENDING" },
+      { "fieldPath": "isFeatured", "order": "ASCENDING" },
+      { "fieldPath": "createdAt", "order": "DESCENDING" }
+    ]},
+    { "collectionGroup": "products", "fields": [
+      { "fieldPath": "categoryId", "order": "ASCENDING" },
+      { "fieldPath": "isActive", "order": "ASCENDING" },
+      { "fieldPath": "createdAt", "order": "DESCENDING" }
+    ]},
+    { "collectionGroup": "products", "fields": [
+      { "fieldPath": "brandId", "order": "ASCENDING" },
+      { "fieldPath": "isActive", "order": "ASCENDING" },
+      { "fieldPath": "createdAt", "order": "DESCENDING" }
+    ]},
+    { "collectionGroup": "orders", "fields": [
+      { "fieldPath": "customerId", "order": "ASCENDING" },
+      { "fieldPath": "createdAt", "order": "DESCENDING" }
+    ]},
+    { "collectionGroup": "orders", "fields": [
+      { "fieldPath": "status", "order": "ASCENDING" },
+      { "fieldPath": "createdAt", "order": "DESCENDING" }
+    ]},
+    { "collectionGroup": "reviews", "fields": [
+      { "fieldPath": "productId", "order": "ASCENDING" },
+      { "fieldPath": "isApproved", "order": "ASCENDING" },
+      { "fieldPath": "createdAt", "order": "DESCENDING" }
+    ]}
+  ],
+  "fieldOverrides": []
+}

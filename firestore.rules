@@ -1,0 +1,60 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin()    { return isSignedIn() && request.auth.token.role == 'admin'; }
+    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
+
+    // ---------- PUBLIC READ / ADMIN WRITE ----------
+    match /products/{id}      { allow read: if true; allow write: if isAdmin(); }
+    match /categories/{id}    { allow read: if true; allow write: if isAdmin(); }
+    match /brands/{id}        { allow read: if true; allow write: if isAdmin(); }
+    match /banners/{id}       { allow read: if true; allow write: if isAdmin(); }
+    match /deliveryZones/{id} { allow read: if true; allow write: if isAdmin(); }
+    match /settings/{id}      { allow read: if true; allow write: if isAdmin(); }
+
+    match /coupons/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ---------- REVIEWS ----------
+    match /reviews/{id} {
+      allow read: if resource.data.isApproved == true || isAdmin();
+      allow create: if isSignedIn()
+        && request.resource.data.rating is number
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5;
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------- ORDERS ----------
+    match /orders/{id} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.customerId == request.auth.uid);
+      allow create: if true;      // guest checkout allowed
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ---------- USERS ----------
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ---------- NOTIFICATIONS ----------
+    match /notifications/{id} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow create: if isAdmin();
+      allow update, delete: if isAdmin();
+    }
+
+    // deny everything else
+    match /{document=**} { allow read, write: if false; }
+  }
+}
