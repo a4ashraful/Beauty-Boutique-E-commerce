@@ -2,52 +2,38 @@ import { initializeApp, getApps, getApp, type FirebaseApp } from 'firebase/app';
 import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getAuth, type Auth } from 'firebase/auth';
 
+// Fallback placeholder values (never real credentials) so initializeApp()
+// never throws at module load just because an env var is missing or not
+// yet configured in the hosting platform's dashboard. If the real config
+// is missing, Firestore/Auth calls will fail later with a normal, catchable
+// network/auth error — instead of crashing the entire Worker on cold start
+// before Next.js or any error boundary ever runs.
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || 'missing-api-key',
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || 'missing.firebaseapp.com',
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'missing-project-id',
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || 'missing.appspot.com',
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '000000000000',
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || '1:000000000000:web:0000000000000000000000',
 };
 
-// Same rationale as lib/firebase/admin.ts: initializing eagerly at module
-// load means a missing/undefined env var (e.g. not yet configured in the
-// hosting platform's dashboard) crashes the entire Worker on cold start,
-// before Next.js or any error boundary ever runs — producing a raw,
-// unstyled 500 with no useful message. Deferring init to first use turns
-// that into a normal, catchable error inside whichever data-fetching call
-// actually needs Firebase.
-let _app: FirebaseApp | undefined;
+const app: FirebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
-function getClientApp(): FirebaseApp {
-  if (_app) return _app;
-  _app = getApps().length ? getApp() : initializeApp(firebaseConfig as Record<string, string>);
-  return _app;
-}
-
-function lazy<T extends object>(factory: () => T): T {
-  let instance: T | undefined;
-  return new Proxy({} as T, {
-    get(_target, prop) {
-      if (!instance) instance = factory();
-      const value = Reflect.get(instance as object, prop, instance);
-      return typeof value === 'function' ? value.bind(instance) : value;
-    },
-  });
-}
-
-export const db: Firestore = lazy(() => getFirestore(getClientApp()));
+// A real Firestore instance (not a Proxy) — required because the modular
+// client SDK's functions like collection(db, 'path') do an `instanceof
+// Firestore` check on the first argument, which a Proxy wrapping a plain
+// object would fail.
+export const db: Firestore = getFirestore(app);
 
 // Auth is only meaningful in the browser. Server-rendered pages (e.g.
 // generateMetadata, RSC data fetching) only ever need Firestore, but they
 // still import this module — so eagerly calling getAuth() here would
-// validate config during server render/cold-start and could crash
-// everything. Deferring it to the browser avoids that, while client
-// components that actually log people in still get a real Auth instance.
+// validate config during server render/cold-start and could throw.
+// Deferring it to the browser avoids that, while client components that
+// actually log people in still get a real Auth instance.
 export const auth: Auth =
   typeof window !== 'undefined'
-    ? getAuth(getClientApp())
+    ? getAuth(app)
     : (new Proxy(
         {},
         {
@@ -57,4 +43,4 @@ export const auth: Auth =
         }
       ) as Auth);
 
-export default { getApp: getClientApp };
+export default app;
