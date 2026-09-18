@@ -12,11 +12,9 @@ const nextConfig = {
   },
 
   experimental: {
-    optimizePackageImports: ['lucide-react', 'recharts'],
-  },
-
-  serverExternalPackages: ['jose'],
-
+  optimizePackageImports: ['lucide-react', 'recharts'],
+  serverComponentsExternalPackages: ['jose'],
+},
   compress: true,
   poweredByHeader: false,
   reactStrictMode: true,
