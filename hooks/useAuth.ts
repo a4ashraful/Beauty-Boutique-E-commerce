@@ -14,9 +14,16 @@ export function useAuth() {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
-        const snap = await getDoc(doc(db, 'users', u.uid));
-        if (snap.exists()) setProfile({ uid: u.uid, ...(snap.data() as any) });
-        else setProfile(null);
+        try {
+          const snap = await getDoc(doc(db, 'users', u.uid));
+          setProfile(snap.exists() ? ({ uid: u.uid, ...(snap.data() as any) }) : null);
+        } catch (err) {
+          // Don't let a failed profile fetch (permission-denied, offline,
+          // rules not deployed, etc.) leave the app stuck on "loading"
+          // forever. The user is still authenticated; just log it.
+          console.error('Failed to load user profile:', err);
+          setProfile(null);
+        }
       } else {
         setProfile(null);
       }
