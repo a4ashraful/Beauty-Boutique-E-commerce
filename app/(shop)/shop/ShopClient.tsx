@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { SlidersHorizontal, PackageOpen } from 'lucide-react';
+import { PackageOpen } from 'lucide-react';
 import { ProductGrid } from '@/components/shop/ProductGrid';
 import { ProductGridSkeleton } from '@/components/shop/ProductCardSkeleton';
 import { ProductFilters } from '@/components/shop/ProductFilters';
@@ -16,6 +16,9 @@ import { getBrands } from '@/lib/firestore/brands';
 import { PAGE_SIZE } from '@/lib/constants';
 import type { Product, Category, Brand } from '@/types';
 
+const slugify = (s?: string) =>
+  (s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
 export function ShopClient() {
   const params = useSearchParams();
   const [loading, setLoading] = useState(true);
@@ -27,9 +30,18 @@ export function ShopClient() {
     (async () => {
       setLoading(true);
       const [p, c, b] = await Promise.all([
-        getAllActiveProducts(500).catch(() => []),
-        getCategories().catch(() => []),
-        getBrands().catch(() => []),
+        getAllActiveProducts(500).catch((e) => {
+          console.error('products load failed', e);
+          return [] as Product[];
+        }),
+        getCategories().catch((e) => {
+          console.error('categories load failed', e);
+          return [] as Category[];
+        }),
+        getBrands().catch((e) => {
+          console.error('brands load failed', e);
+          return [] as Brand[];
+        }),
       ]);
       setAllProducts(p);
       setCategories(c);
@@ -37,6 +49,16 @@ export function ShopClient() {
       setLoading(false);
     })();
   }, []);
+
+  // Highest price in the catalogue — drives the price slider ceiling so it
+  // is no longer hardcoded to ৳5000 (products above that were unreachable).
+  const maxCatalogPrice = useMemo(() => {
+    if (!allProducts.length) return 0;
+    return allProducts.reduce((max, p) => {
+      const price = Number(p.salePrice ?? p.regularPrice) || 0;
+      return price > max ? price : max;
+    }, 0);
+  }, [allProducts]);
 
   const filtered = useMemo(() => {
     let list = [...allProducts];
@@ -53,12 +75,32 @@ export function ShopClient() {
     }
 
     const category = params.get('category');
-    if (category) list = list.filter((p) => p.categoryName === category || p.categoryId === category);
+    if (category) {
+      const cat = categories.find((c) => c.slug === category || c.id === category);
+      list = list.filter(
+        (p) =>
+          p.categoryId === category ||
+          slugify(p.categoryName) === category ||
+          (cat &&
+            (p.categoryId === cat.id ||
+              p.subcategoryId === cat.id ||
+              slugify(p.categoryName) === cat.slug))
+      );
+    }
 
+    // Brand filter: match by brandId, brand slug, or slugified brand name so
+    // it works no matter how the product was saved in the admin panel.
     const brandParam = params.get('brand');
     if (brandParam) {
       const slugs = brandParam.split(',').filter(Boolean);
-      list = list.filter((p) => slugs.includes(p.brandName?.toLowerCase().replace(/\s+/g, '-') || ''));
+      const idsForSlugs = new Set(
+        brands.filter((b) => slugs.includes(b.slug)).map((b) => b.id)
+      );
+      list = list.filter(
+        (p) =>
+          (p.brandId && idsForSlugs.has(p.brandId)) ||
+          slugs.includes(slugify(p.brandName))
+      );
     }
 
     const skinType = params.get('skinType');
@@ -67,11 +109,13 @@ export function ShopClient() {
     const concern = params.get('skinConcern');
     if (concern) list = list.filter((p) => p.skinConcerns?.includes(concern));
 
-    const min = Number(params.get('min') || 0);
-    const max = Number(params.get('max') || Infinity);
-    if (min || max < Infinity) {
+    const minParam = params.get('min');
+    const maxParam = params.get('max');
+    const min = minParam ? Number(minParam) : 0;
+    const max = maxParam ? Number(maxParam) : Infinity;
+    if (min > 0 || max < Infinity) {
       list = list.filter((p) => {
-        const price = p.salePrice ?? p.regularPrice;
+        const price = Number(p.salePrice ?? p.regularPrice) || 0;
         return price >= min && price <= max;
       });
     }
@@ -90,8 +134,8 @@ export function ShopClient() {
     // Sort
     const sort = params.get('sort') || 'newest';
     list.sort((a, b) => {
-      const pa = a.salePrice ?? a.regularPrice;
-      const pb = b.salePrice ?? b.regularPrice;
+      const pa = Number(a.salePrice ?? a.regularPrice) || 0;
+      const pb = Number(b.salePrice ?? b.regularPrice) || 0;
       switch (sort) {
         case 'price-asc': return pa - pb;
         case 'price-desc': return pb - pa;
@@ -103,7 +147,7 @@ export function ShopClient() {
     });
 
     return list;
-  }, [allProducts, params]);
+  }, [allProducts, params, brands, categories]);
 
   const page = Math.max(1, Number(params.get('page') || 1));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -121,7 +165,11 @@ export function ShopClient() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <MobileFilterSheet categories={categories} brands={brands} />
+          <MobileFilterSheet
+            categories={categories}
+            brands={brands}
+            maxPrice={maxCatalogPrice}
+          />
           <SortDropdown />
         </div>
       </div>
@@ -131,7 +179,11 @@ export function ShopClient() {
       <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-8">
         <aside className="hidden lg:block">
           <div className="sticky top-32">
-            <ProductFilters categories={categories} brands={brands} />
+            <ProductFilters
+              categories={categories}
+              brands={brands}
+              maxPrice={maxCatalogPrice}
+            />
           </div>
         </aside>
 
