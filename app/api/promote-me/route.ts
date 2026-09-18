@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { adminAuth } from '@/lib/firebase/admin';
+import { adminAuth, adminDb } from '@/lib/firebase/admin';
 
 // ⚠️ DELETE THIS FILE IMMEDIATELY AFTER USE ⚠️
 export async function GET(request: Request) {
@@ -18,11 +18,12 @@ export async function GET(request: Request) {
   }
 
   try {
-    // 1. Find the user by email
+    // Find the user by email, then grant admin by writing the Firestore
+    // profile field that everything else in the app already checks
+    // (session login, security rules, admin pages) — no Auth custom claim
+    // needed.
     const user = await adminAuth.getUserByEmail(email);
-
-    // 2. Set the admin role claim
-    await adminAuth.setCustomUserClaims(user.uid, { role: 'admin' });
+    await adminDb.collection('users').doc(user.uid).set({ role: 'admin' }, { merge: true });
 
     return NextResponse.json({ 
       success: true, 
