@@ -19,15 +19,15 @@ function getAdminApp(): App {
     return _app;
   }
 
-  // Prefer FIREBASE_PRIVATE_KEY_BASE64 over FIREBASE_PRIVATE_KEY. A raw PEM
-  // key pasted into a dashboard env var is fragile — a stray \r character
-  // (common when copy-pasting from Windows or some editors) survives the
-  // \n-replace below and ends up embedded in the signed auth token, which
-  // grpc-js then rejects with "Metadata string value ... contains illegal
+  // FIREBASE_PRIVATE_KEY_BASE64 is the preferred source: pasting a raw PEM
+  // key into a dashboard env var is fragile — a stray \r (common when
+  // copy-pasting from Windows/some editors) survives the .replace(/\\n/g)
+  // call below and gets embedded in the signed auth token, which grpc-js
+  // then rejects with "Metadata string value ... contains illegal
   // characters" the moment Firestore is queried. Base64 has no whitespace
   // or line-ending characters at all, so it can't be corrupted this way.
   // FIREBASE_PRIVATE_KEY is kept as a fallback for local dev / anyone who
-  // hasn't migrated to the base64 var yet.
+  // hasn't migrated yet.
   const privateKey = process.env.FIREBASE_PRIVATE_KEY_BASE64
     ? Buffer.from(process.env.FIREBASE_PRIVATE_KEY_BASE64, 'base64').toString('utf8')
     : process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
