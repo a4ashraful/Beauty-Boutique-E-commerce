@@ -6,6 +6,13 @@ import { Breadcrumbs } from '@/components/shop/Breadcrumbs';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Award } from 'lucide-react';
 
+// Firestore data is read at request time. Without this, Next.js statically
+// prerendered this page at build time and froze whatever the build saw —
+// so newly added brands/categories/products never appeared until the next
+// deploy (and appeared as empty if the build hit a Firestore error).
+export const revalidate = 60;
+
+
 export const metadata: Metadata = {
   title: 'Shop by Brand',
   description: 'Explore authentic beauty brands available in Bangladesh.',
