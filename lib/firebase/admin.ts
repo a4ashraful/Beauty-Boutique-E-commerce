@@ -2,15 +2,14 @@ import { initializeApp, cert, getApps, type App } from 'firebase-admin/app';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getAuth, type Auth } from 'firebase-admin/auth';
 
-// The Admin SDK needs real service-account credentials to initialize. Doing
-// that eagerly at module load means Next.js crashes the entire build the
-// moment it imports this file to collect page data for any route that uses
-// it — even though the credentials are only actually needed once a real
-// request comes in at runtime. Deferring initialization until the first
-// property access (via this lazy Proxy) keeps the build-time import
-// side-effect-free while behaving exactly like a normal Firestore/Auth
-// instance everywhere it's actually used.
 let _app: App | undefined;
+
+/** Trim stray whitespace / CRLF / wrapping quotes from dashboard env vars. */
+function env(key: string): string {
+  const raw = process.env[key];
+  if (!raw) return '';
+  return raw.trim().replace(/^['"]|['"]$/g, '').trim();
+}
 
 function getAdminApp(): App {
   if (_app) return _app;
@@ -26,17 +25,18 @@ function getAdminApp(): App {
   // then rejects with "Metadata string value ... contains illegal
   // characters" the moment Firestore is queried. Base64 has no whitespace
   // or line-ending characters at all, so it can't be corrupted this way.
-  // FIREBASE_PRIVATE_KEY is kept as a fallback for local dev / anyone who
-  // hasn't migrated yet.
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY_BASE64
-    ? Buffer.from(process.env.FIREBASE_PRIVATE_KEY_BASE64, 'base64').toString('utf8')
-    : process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  const rawKey = env('FIREBASE_PRIVATE_KEY_BASE64')
+    ? Buffer.from(env('FIREBASE_PRIVATE_KEY_BASE64'), 'base64').toString('utf8')
+    : env('FIREBASE_PRIVATE_KEY').replace(/\\n/g, '\n');
+
+  // Normalise line endings and drop any trailing \r left on each PEM line.
+  const privateKey = rawKey.replace(/\r\n/g, '\n').replace(/\r/g, '').trim() + '\n';
 
   _app = initializeApp({
     credential: cert({
-      projectId: process.env.FIREBASE_PROJECT_ID!,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL!,
-      privateKey: privateKey!,
+      projectId: env('FIREBASE_PROJECT_ID') || env('NEXT_PUBLIC_FIREBASE_PROJECT_ID'),
+      clientEmail: env('FIREBASE_CLIENT_EMAIL'),
+      privateKey,
     }),
   });
   return _app;
