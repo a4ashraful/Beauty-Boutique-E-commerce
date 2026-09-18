@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth } from '@/lib/firebase/admin';
+import { adminAuth, adminDb } from '@/lib/firebase/admin';
 
 export const runtime = 'nodejs';
 
@@ -9,9 +9,17 @@ export async function POST(req: NextRequest) {
     if (!token) return NextResponse.json({ error: 'Missing token' }, { status: 400 });
 
     const decoded = await adminAuth.verifyIdToken(token);
-    const user = await adminAuth.getUser(decoded.uid);
 
-    if (user.customClaims?.role !== 'admin') {
+    // Single source of truth: the Firestore users/{uid}.role field — the
+    // same field every admin page (useAdminGuard) and admin UI already
+    // reads. There used to be a second, separate check here against an
+    // Auth custom claim, which meant granting admin access required
+    // updating two different places that could drift out of sync. This
+    // route is now consistent with the rest of the app.
+    const profileSnap = await adminDb.collection('users').doc(decoded.uid).get();
+    const role = profileSnap.exists ? profileSnap.data()?.role : undefined;
+
+    if (role !== 'admin') {
       return NextResponse.json({ error: 'Not admin' }, { status: 403 });
     }
 
