@@ -4,18 +4,43 @@ import { ProductDetails } from '@/components/shop/ProductDetails';
 import {
   getProductBySlug,
   getRelatedProducts,
-  incrementProductView,
 } from '@/lib/firestore/products';
 import { getProductReviews } from '@/lib/firestore/reviews';
 import { SITE } from '@/lib/constants';
+
+// This page reads live Firestore data — never let Next serve a stale or
+// build-time-empty prerender of it.
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 interface Params {
   params: { slug: string };
 }
 
+/**
+ * A *failed* fetch and a *missing* product are different things. The old
+ * code treated both as 404, so any Firestore hiccup (bad env var, missing
+ * index, network) rendered "not found" instead of the product. Now a
+ * thrown error is logged and re-thrown into error.tsx, and only a genuine
+ * null result 404s.
+ */
+async function loadProduct(slug: string) {
+  try {
+    return await getProductBySlug(decodeURIComponent(slug));
+  } catch (e) {
+    console.error('[product page] failed to load', slug, e);
+    throw e;
+  }
+}
+
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
-  const product = await getProductBySlug(params.slug);
-  if (!product) return { title: 'Product not found' };
+  let product = null;
+  try {
+    product = await getProductBySlug(decodeURIComponent(params.slug));
+  } catch {
+    // Metadata must never break the page render
+  }
+  if (!product) return { title: 'Product' };
 
   const title = product.seoTitle || product.name;
   const description =
@@ -39,16 +64,13 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 }
 
 export default async function ProductPage({ params }: Params) {
-  const product = await getProductBySlug(params.slug);
+  const product = await loadProduct(params.slug);
   if (!product) return notFound();
 
   const [related, reviews] = await Promise.all([
     getRelatedProducts(product, 8).catch(() => []),
     getProductReviews(product.id).catch(() => []),
   ]);
-
-  // fire & forget view count
-  incrementProductView(product.id).catch(() => {});
 
   const jsonLd = {
     '@context': 'https://schema.org',
