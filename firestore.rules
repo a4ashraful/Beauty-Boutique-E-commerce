@@ -3,7 +3,11 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function isSignedIn() { return request.auth != null; }
-    function isAdmin()    { return isSignedIn() && request.auth.token.role == 'admin'; }
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
     function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
 
     // ---------- PUBLIC READ / ADMIN WRITE ----------
@@ -41,8 +45,17 @@ service cloud.firestore {
     // ---------- USERS ----------
     match /users/{uid} {
       allow read: if isOwner(uid) || isAdmin();
-      allow create: if isOwner(uid);
-      allow update: if isOwner(uid) || isAdmin();
+      // Anyone can create their own profile on signup, but not as admin —
+      // ensureUserProfile() always writes role: 'customer', so this just
+      // blocks a forged client-side write from creating an admin account.
+      allow create: if isOwner(uid) && request.resource.data.role == 'customer';
+      // An owner can update their own profile (name, phone, addresses...)
+      // but NOT their own role — only an existing admin can grant or
+      // revoke admin status. Without this, role became a plain writable
+      // field the moment it replaced custom claims as the source of
+      // truth, and any signed-in user could self-promote to admin.
+      allow update: if isAdmin()
+        || (isOwner(uid) && request.resource.data.role == resource.data.role);
       allow delete: if isAdmin();
     }
 
