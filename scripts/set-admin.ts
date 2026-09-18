@@ -5,7 +5,7 @@
  */
 import { config } from 'dotenv';
 config({ path: '.env.local' });
-import { adminAuth } from '../lib/firebase/admin';
+import { adminAuth, adminDb } from '../lib/firebase/admin';
 
 async function main() {
   const arg = process.argv[2];
@@ -20,8 +20,12 @@ async function main() {
     uid = user.uid;
   }
 
-  await adminAuth.setCustomUserClaims(uid, { role: 'admin' });
-  console.log(`✅ Admin role granted to ${uid}`);
+  // role on the Firestore users/{uid} document is now the single source of
+  // truth for admin access across the whole app (session login check,
+  // Firestore security rules, and every /admin page's client-side guard).
+  // There is no longer a separate Auth custom claim to keep in sync.
+  await adminDb.collection('users').doc(uid).set({ role: 'admin' }, { merge: true });
+  console.log(`✅ Admin role granted to ${uid} (Firestore users/${uid}.role)`);
   process.exit(0);
 }
 
