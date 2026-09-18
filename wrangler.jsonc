@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "beauty-boutique-by-tandra",
+"name": "beauty-boutique-e-commerce",
   "main": ".open-next/worker.js",
   "compatibility_date": "2026-09-17",
   "compatibility_flags": [
