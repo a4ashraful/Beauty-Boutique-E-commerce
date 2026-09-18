@@ -9,9 +9,11 @@ import type { Brand, Category } from '@/types';
 export function MobileFilterSheet({
   categories,
   brands,
+  maxPrice,
 }: {
   categories: Category[];
   brands: Brand[];
+  maxPrice?: number;
 }) {
   return (
     <Sheet>
@@ -24,7 +26,7 @@ export function MobileFilterSheet({
         <SheetHeader className="mb-4">
           <SheetTitle>Filters</SheetTitle>
         </SheetHeader>
-        <ProductFilters categories={categories} brands={brands} />
+        <ProductFilters categories={categories} brands={brands} maxPrice={maxPrice} />
       </SheetContent>
     </Sheet>
   );
